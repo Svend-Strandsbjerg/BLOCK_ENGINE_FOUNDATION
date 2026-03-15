@@ -37,7 +37,7 @@ class BlockMovementServiceTests(unittest.TestCase):
     def _metadata(op_id: str) -> OperationMetadata:
         return OperationMetadata(operation_id=OperationId(op_id), source="test", user_or_system="tester")
 
-    def test_place_block_returns_structured_result_and_event(self) -> None:
+    def test_place_block_returns_sync_friendly_result_and_event(self) -> None:
         result = self.service.place(
             self.state,
             BlockId("b1"),
@@ -48,6 +48,9 @@ class BlockMovementServiceTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertEqual(1, len(result.events))
+        self.assertEqual(["b1"], result.affected_block_ids)
+        self.assertEqual(["c1"], result.affected_container_ids)
+        self.assertEqual("c1", result.location_changes[0].current_container_id)
         self.assertEqual([BlockId("b1")], self.state.containers[ContainerId("c1")].block_order)
         self.assertEqual(ContainerId("c1"), self.state.block_locations[BlockId("b1")])
 
@@ -77,6 +80,7 @@ class BlockMovementServiceTests(unittest.TestCase):
 
         self.assertTrue(result.success)
         self.assertIsInstance(result.events[0], BlockMoved)
+        self.assertEqual(["c1", "c2"], result.affected_container_ids)
         self.assertEqual([BlockId("b2")], self.state.containers[ContainerId("c1")].block_order)
         self.assertEqual([BlockId("b1")], self.state.containers[ContainerId("c2")].block_order)
 

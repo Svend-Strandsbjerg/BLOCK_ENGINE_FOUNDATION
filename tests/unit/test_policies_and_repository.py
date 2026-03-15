@@ -11,6 +11,7 @@ from src.domain.common.value_objects import (
     SequencePosition,
 )
 from src.domain.container.models import Container
+from src.domain.operations.rejection import OperationRejection
 from src.domain.policies.movement_policies import PlacementPolicy
 from src.domain.services.block_movement_service import BlockMovementService
 from src.infrastructure.repositories.in_memory import InMemoryStateRepository
@@ -18,7 +19,13 @@ from src.infrastructure.repositories.in_memory import InMemoryStateRepository
 
 class RejectAllPlacementPolicy(PlacementPolicy):
     def validate(self, state, block_id, container_id, position):
-        return ["placement blocked by policy"]
+        return [
+            OperationRejection(
+                code="placement.blocked",
+                message="placement blocked by policy",
+                entity_ids=[str(block_id), str(container_id)],
+            )
+        ]
 
 
 class PolicyAndRepositoryTests(unittest.TestCase):
@@ -42,6 +49,7 @@ class PolicyAndRepositoryTests(unittest.TestCase):
         )
 
         self.assertFalse(result.success)
+        self.assertEqual("placement.blocked", result.rejections[0].code)
         self.assertIn("placement blocked by policy", result.violations)
 
     def test_repository_expected_version_check(self) -> None:

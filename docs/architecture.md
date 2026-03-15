@@ -1,67 +1,55 @@
-# Block Engine Architecture
+# Block Engine Architecture (v1)
 
 ## Layered structure
 
 - **Domain (`src/domain`)**
-  - Value objects, entities, aggregates, policies, domain events, and operation results.
-  - Deterministic movement orchestration in `BlockMovementService`.
+  - Blocks, containers, aggregates, policies, domain events, operation outcomes
+  - Positioning contracts (`PositionStrategy`) and sequence implementation (`SequencePositionStrategy`)
 - **Application (`src/application`)**
-  - Command handler orchestrates command execution against snapshot state.
-  - Coordinates cross-aggregate movement through domain service.
+  - Command orchestration (`CommandHandler`)
+  - Query/read service (`FrameworkQueryService`)
+  - Mapping boundary for external contracts (`DomainReadModelMapper`, `OperationResultMapper`)
 - **Infrastructure (`src/infrastructure`)**
-  - Repository abstractions and concrete persistence adapters.
-  - Current implementation: version-aware in-memory snapshot repository.
+  - Snapshot repository abstraction
+  - Version-aware in-memory implementation with optimistic concurrency checks
 
-## Design decisions
+## Aggregate and orchestration boundaries
 
-### 1) Explicit value objects over primitives
+- `ContainerAggregate` owns only ordering/state consistency for its container.
+- Cross-container move orchestration and policy coordination are handled by `BlockMovementService`.
+- `CommandHandler` remains application-level dispatch and transaction-style coordination.
 
-Core identifiers and operation metadata are first-class value objects to improve type safety, readability, and contract clarity.
+## Deterministic positioning and reads
 
-### 2) Positioning abstraction
+- Container ordering is strategy-based, not hardcoded to one concrete class.
+- Current deterministic strategy is sequence ordering with normalized indexes.
+- Query layer always returns container blocks in deterministic order to support stable client rendering.
 
-`Position` is strategy-oriented and currently implemented as `SequencePosition`. This keeps deterministic ordering today while allowing future position models.
+## Rejection and validation model
 
-### 3) Policy-driven domain rules
+- Policy and validation failures are represented by `OperationRejection`:
+  - `code`
+  - `message`
+  - `entity_ids`
+  - optional `context`
+- `OperationResult` includes structured rejections plus synchronization deltas.
 
-Placement and movement decisions are delegated to policy interfaces. `BlockMovementService` orchestrates flow and state transitions rather than hard-coding business decisions.
+## Deterministic client synchronization support
 
-### 4) Structured operation outcomes
+For every successful operation, consumers can deterministically identify:
 
-All commands return `OperationResult` with:
+- which blocks changed (`affected_block_ids`)
+- which containers changed (`affected_container_ids`)
+- how locations changed (`location_changes`)
+- the current framework version (`version`)
 
-- success/failure
-- violations
-- emitted events
-- affected entities
-- snapshot version
+This allows efficient partial redraw/update logic in future UI/API adapters.
 
-This improves observability, testability, and future integrations.
+## Extensibility without overengineering
 
-### 5) Domain event model
+The architecture intentionally keeps extension points small:
 
-State transitions emit domain events (`BlockCreated`, `BlockPlaced`, `BlockMoved`, `BlockRemoved`, `BlockReordered`) to support auditability and projection pipelines.
-
-### 6) Aggregate boundaries
-
-Container ordering behavior is contained in `ContainerAggregate`. The global snapshot remains deterministic but is no longer modeled as one mutable ordering object.
-
-### 7) Version and concurrency readiness
-
-State and repository contracts include versions and expected-version checks, enabling optimistic concurrency evolution without redesign.
-
-## Command lifecycle
-
-1. Command is validated by type in `CommandHandler`.
-2. Domain action executes.
-3. Policies evaluate movement/placement constraints when relevant.
-4. State updates occur deterministically.
-5. Domain events are emitted.
-6. `OperationResult` is returned to caller.
-
-## Future evolution
-
-- Introduce richer policy sets per implementation domain.
-- Add read-model/projector pipeline from domain events.
-- Add persistent aggregate repositories and snapshot/event hybrid stores.
-- Extend position strategy library without altering command orchestration contracts.
+- Add new `PositionStrategy` implementations for time/grid/span models.
+- Add/replace policies for domain-specific constraints.
+- Add adapter-specific serializers/controllers outside the core while reusing read models and mappers.
+- Swap repository backend without changing domain/application contracts.

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.domain.common.value_objects import BlockId, ContainerId, OperationMetadata, SequencePosition
+from src.domain.common.value_objects import BlockId, ContainerId, OperationMetadata, Position
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,14 +36,14 @@ class UpdateBlock(Command):
 class PlaceBlock(Command):
     block_id: BlockId
     container_id: ContainerId
-    position: SequencePosition
+    position: Position
 
 
 @dataclass(frozen=True, slots=True)
 class MoveBlock(Command):
     block_id: BlockId
     target_container_id: ContainerId
-    target_position: SequencePosition
+    target_position: Position
 
 
 @dataclass(frozen=True, slots=True)
