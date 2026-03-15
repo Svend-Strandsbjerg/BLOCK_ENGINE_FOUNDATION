@@ -6,10 +6,17 @@ from src.domain.commands.models import (
     CreateBlock,
     CreateContainer,
     MoveBlock,
-    OperationMetadata,
     PlaceBlock,
     UpdateBlock,
 )
+from src.domain.common.value_objects import (
+    BlockId,
+    ContainerId,
+    OperationId,
+    OperationMetadata,
+    SequencePosition,
+)
+from src.domain.events.models import BlockCreated, BlockMoved
 
 
 class CommandHandlerTests(unittest.TestCase):
@@ -19,79 +26,87 @@ class CommandHandlerTests(unittest.TestCase):
 
     @staticmethod
     def _metadata(op_id: str) -> OperationMetadata:
-        return OperationMetadata(operation_id=op_id, source="test", user_or_system="tester")
+        return OperationMetadata(operation_id=OperationId(op_id), source="test", user_or_system="tester")
 
-    def test_applies_create_and_move_flow(self) -> None:
+    def test_applies_create_and_move_flow_with_domain_events(self) -> None:
         self.handler.apply(
             self.state,
             CreateContainer(
                 metadata=self._metadata("op-1"),
-                container_id="c1",
-                container_type="swimlane",
+                container_id=ContainerId("c1"),
+                container_type="generic",
             ),
         )
         self.handler.apply(
             self.state,
             CreateContainer(
                 metadata=self._metadata("op-2"),
-                container_id="c2",
-                container_type="queue",
+                container_id=ContainerId("c2"),
+                container_type="generic",
             ),
         )
-        self.handler.apply(
+        create_result = self.handler.apply(
             self.state,
             CreateBlock(
                 metadata=self._metadata("op-3"),
-                block_id="b1",
+                block_id=BlockId("b1"),
                 block_type="task",
                 payload={"value": 5},
             ),
         )
         self.handler.apply(
             self.state,
-            PlaceBlock(metadata=self._metadata("op-4"), block_id="b1", container_id="c1", index=0),
+            PlaceBlock(
+                metadata=self._metadata("op-4"),
+                block_id=BlockId("b1"),
+                container_id=ContainerId("c1"),
+                position=SequencePosition(order_index=0),
+            ),
         )
-        self.handler.apply(
+        move_result = self.handler.apply(
             self.state,
             MoveBlock(
                 metadata=self._metadata("op-5"),
-                block_id="b1",
-                target_container_id="c2",
-                target_index=0,
+                block_id=BlockId("b1"),
+                target_container_id=ContainerId("c2"),
+                target_position=SequencePosition(order_index=0),
             ),
         )
 
-        self.assertEqual(["b1"], self.state.container_block_order["c2"])
-        self.assertEqual("c2", self.state.block_locations["b1"])
+        self.assertIsInstance(create_result.events[0], BlockCreated)
+        self.assertIsInstance(move_result.events[0], BlockMoved)
+        self.assertEqual([BlockId("b1")], self.state.containers[ContainerId("c2")].block_order)
+        self.assertEqual(ContainerId("c2"), self.state.block_locations[BlockId("b1")])
 
     def test_update_block_metadata(self) -> None:
         self.handler.apply(
             self.state,
             CreateContainer(
                 metadata=self._metadata("op-1"),
-                container_id="c1",
-                container_type="swimlane",
+                container_id=ContainerId("c1"),
+                container_type="generic",
             ),
         )
         self.handler.apply(
             self.state,
             CreateBlock(
                 metadata=self._metadata("op-2"),
-                block_id="b1",
+                block_id=BlockId("b1"),
                 block_type="task",
             ),
         )
 
-        self.handler.apply(
+        update_result = self.handler.apply(
             self.state,
             UpdateBlock(
                 metadata=self._metadata("op-3"),
-                block_id="b1",
+                block_id=BlockId("b1"),
                 metadata_patch={"priority": "high"},
             ),
         )
 
-        self.assertEqual("high", self.state.blocks["b1"].metadata["priority"])
+        self.assertTrue(update_result.success)
+        self.assertEqual("high", self.state.blocks[BlockId("b1")].metadata["priority"])
 
 
 if __name__ == "__main__":
