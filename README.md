@@ -48,6 +48,9 @@ This template treats AI agents as first-class contributors while preserving engi
 - `CONTRIBUTING.md`: Contribution guide for humans and AI agents.
 - `docs/standards/`: Engineering, testing, and documentation standards.
 - `docs/process/`: Repeatable workflows for development and PR execution.
+- `docs/foundation-concept.md`: Product-agnostic block movement foundation scope.
+- `docs/architecture.md`: Layered architecture for the new block framework implementation.
+- `src/`: Framework implementation (domain, application, and infrastructure layers).
 - `.github/`: PR template, issue templates, and CI workflows (repository hygiene plus workflow-file validation).
 - `tests/`: Test scaffolding and repository-level validation scripts.
 

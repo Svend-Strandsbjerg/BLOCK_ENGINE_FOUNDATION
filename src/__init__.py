@@ -1,0 +1,1 @@
+"""Block movement foundation framework."""
