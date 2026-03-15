@@ -20,6 +20,7 @@ class DomainReadModelMapper:
         return BlockView(
             block_id=str(block.block_id),
             block_type=block.block_type,
+            state=str(block.state) if block.state else None,
             metadata=dict(block.metadata),
             payload=dict(block.payload),
             version=block.version,

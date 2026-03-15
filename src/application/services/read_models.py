@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 class BlockView:
     block_id: str
     block_type: str
+    state: str | None = None
     metadata: dict[str, object] = field(default_factory=dict)
     payload: dict[str, object] = field(default_factory=dict)
     version: int = 0

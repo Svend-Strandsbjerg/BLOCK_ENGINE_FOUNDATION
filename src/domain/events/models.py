@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.domain.block.models import BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, OperationMetadata, Position
 
 
@@ -13,6 +14,14 @@ class DomainEvent:
 @dataclass(frozen=True, slots=True)
 class BlockCreated(DomainEvent):
     block_id: BlockId
+    state: BlockState | None
+
+
+@dataclass(frozen=True, slots=True)
+class BlockStateChanged(DomainEvent):
+    block_id: BlockId
+    previous_state: BlockState | None
+    current_state: BlockState
 
 
 @dataclass(frozen=True, slots=True)
