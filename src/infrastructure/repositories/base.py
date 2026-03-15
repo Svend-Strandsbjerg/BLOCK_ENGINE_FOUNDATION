@@ -1,17 +1,24 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 from src.application.services.state import BlockFrameworkState
 
 
+@dataclass(frozen=True, slots=True)
+class PersistedSnapshot:
+    state: BlockFrameworkState
+    version: int
+
+
 class StateRepository(ABC):
-    """Repository abstraction for persisting deterministic state snapshots."""
+    """Repository abstraction for aggregate-aware deterministic snapshots."""
 
     @abstractmethod
-    def load(self) -> BlockFrameworkState:
+    def load_snapshot(self) -> PersistedSnapshot:
         raise NotImplementedError
 
     @abstractmethod
-    def save(self, state: BlockFrameworkState) -> None:
+    def save_snapshot(self, state: BlockFrameworkState, expected_version: int | None = None) -> PersistedSnapshot:
         raise NotImplementedError

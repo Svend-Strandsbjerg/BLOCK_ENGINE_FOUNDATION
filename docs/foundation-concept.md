@@ -1,48 +1,56 @@
-# Foundation Concept: Abstract Block Movement
+# Foundation Concept: Abstract Block Movement Engine
 
-This repository now includes a minimal, domain-agnostic framework for managing movable blocks inside ordered containers.
+This foundation provides a reusable, domain-agnostic block movement engine focused on deterministic behavior, explicit contracts, and enterprise-ready extension points.
 
 ## Core abstractions
 
-- **Block**: Generic unit of information with flexible metadata and payload.
-- **Container**: Ordered context where blocks are placed.
-- **Position**: Deterministic index-based ordering model.
+- **Value objects**
+  - `BlockId`, `ContainerId`, `OperationId`
+  - `SequencePosition` as the first `Position` strategy implementation
+  - `OperationMetadata` for traceability and idempotency context
+- **Entities / aggregates**
+  - `Block` as a movable domain unit
+  - `ContainerAggregate` as the consistency boundary for ordered placement
+- **Policies**
+  - `PlacementPolicy`
+  - `MovementPolicy`
+  - `PositionConflictPolicy`
+  - `ContainerConstraintPolicy`
+- **Operation outcome model**
+  - `OperationResult` returns success/failure, violations, emitted events, affected entities, and versions.
+- **Domain events**
+  - `BlockCreated`, `BlockPlaced`, `BlockMoved`, `BlockRemoved`, `BlockReordered`
 
-## Deterministic state model
+## Aggregate boundaries and state
 
-State is represented by `BlockFrameworkState`:
+The engine snapshot (`BlockFrameworkState`) keeps:
 
-- `blocks`: all known blocks keyed by ID.
-- `containers`: all known containers keyed by ID.
-- `container_block_order`: deterministic ordering of block IDs per container.
-- `block_locations`: reverse lookup of where each block is currently placed.
+- block registry
+- container aggregates
+- block-to-container location index
+- snapshot version
 
-Operations are applied as explicit commands through the command handler.
+Containers are treated as stronger boundaries for block ordering consistency. Cross-container movement is orchestrated by the application layer/service.
 
-## Traceability
+## Deterministic command flow
 
-Every command carries `OperationMetadata`:
+1. A command with `OperationMetadata` enters `CommandHandler`.
+2. Handler orchestrates create/update actions directly and delegates movement operations to `BlockMovementService`.
+3. Movement service evaluates policies.
+4. If valid, container aggregate ordering is updated deterministically.
+5. `OperationResult` and domain events are returned for tracing and integrations.
 
-- `operation_id`
-- `timestamp`
-- `source`
-- `user_or_system`
+## Persistence and concurrency readiness
 
-This supports auditability and future event-oriented expansion.
+Repository contract is snapshot-oriented and version-aware:
 
-## Scope of this implementation
+- `load_snapshot()` returns `PersistedSnapshot`
+- `save_snapshot(state, expected_version=...)` supports optimistic concurrency checks
 
-Included:
+In-memory implementation is intentionally simple but compatible with future database/event-backed implementations.
 
-- Core domain models
-- Command model
-- Movement service for placement/reordering/relocation/removal
-- In-memory repository abstraction
-- Unit tests for movement and command handling
+## Extension points
 
-Not included:
-
-- UI
-- Domain-specific business logic
-- Persistence backends beyond in-memory
-- Distributed/event-sourcing infrastructure
+- Replace policies for new domain rules without rewriting movement orchestration.
+- Add new `Position` strategy variants (time-range, coordinates, span/quantity) while preserving command and result contracts.
+- Add projection/read-model layers from emitted domain events.

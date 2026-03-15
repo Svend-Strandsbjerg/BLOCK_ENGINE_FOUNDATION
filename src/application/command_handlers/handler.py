@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.application.services.state import BlockFrameworkState
+from src.domain.aggregates.container_aggregate import ContainerAggregate
 from src.domain.block.models import Block
 from src.domain.commands.models import (
     Command,
@@ -12,47 +13,59 @@ from src.domain.commands.models import (
     UpdateBlock,
 )
 from src.domain.container.models import Container
+from src.domain.events.models import BlockCreated
+from src.domain.operations.result import OperationResult
 from src.domain.services.block_movement_service import BlockMovementService
 
 
 class CommandHandler:
-    def apply(self, state: BlockFrameworkState, command: Command) -> None:
+    def __init__(self, movement_service: BlockMovementService | None = None) -> None:
+        self._movement_service = movement_service or BlockMovementService()
+
+    def apply(self, state: BlockFrameworkState, command: Command) -> OperationResult:
         if isinstance(command, CreateContainer):
-            self._create_container(state, command)
-        elif isinstance(command, CreateBlock):
-            self._create_block(state, command)
-        elif isinstance(command, UpdateBlock):
-            self._update_block(state, command)
-        elif isinstance(command, PlaceBlock):
-            BlockMovementService.place(state, command.block_id, command.container_id, command.index)
-        elif isinstance(command, MoveBlock):
-            BlockMovementService.move(
+            return self._create_container(state, command)
+        if isinstance(command, CreateBlock):
+            return self._create_block(state, command)
+        if isinstance(command, UpdateBlock):
+            return self._update_block(state, command)
+        if isinstance(command, PlaceBlock):
+            return self._movement_service.place(state, command.block_id, command.container_id, command.position, command.metadata)
+        if isinstance(command, MoveBlock):
+            return self._movement_service.move(
                 state,
                 command.block_id,
                 command.target_container_id,
-                command.target_index,
+                command.target_position,
+                command.metadata,
             )
-        elif isinstance(command, RemoveBlock):
-            BlockMovementService.remove(state, command.block_id)
-        else:
-            raise TypeError(f"Unsupported command type: {type(command)!r}")
+        if isinstance(command, RemoveBlock):
+            return self._movement_service.remove(state, command.block_id, command.metadata)
+        raise TypeError(f"Unsupported command type: {type(command)!r}")
 
     @staticmethod
-    def _create_container(state: BlockFrameworkState, command: CreateContainer) -> None:
+    def _create_container(state: BlockFrameworkState, command: CreateContainer) -> OperationResult:
         if command.container_id in state.containers:
-            raise ValueError(f"Container {command.container_id} already exists")
+            return OperationResult.failed(command.metadata, [f"Container {command.container_id} already exists"])
 
-        state.containers[command.container_id] = Container(
+        container = Container(
             container_id=command.container_id,
             container_type=command.container_type,
             metadata=dict(command.metadata_patch),
         )
-        state.container_block_order.setdefault(command.container_id, [])
+        state.containers[command.container_id] = ContainerAggregate(container=container)
+        state.increment_version()
+        return OperationResult(
+            success=True,
+            metadata=command.metadata,
+            affected_entities=[str(command.container_id)],
+            version=state.version,
+        )
 
     @staticmethod
-    def _create_block(state: BlockFrameworkState, command: CreateBlock) -> None:
+    def _create_block(state: BlockFrameworkState, command: CreateBlock) -> OperationResult:
         if command.block_id in state.blocks:
-            raise ValueError(f"Block {command.block_id} already exists")
+            return OperationResult.failed(command.metadata, [f"Block {command.block_id} already exists"])
 
         state.blocks[command.block_id] = Block(
             block_id=command.block_id,
@@ -60,11 +73,27 @@ class CommandHandler:
             payload=dict(command.payload),
             metadata=dict(command.metadata_patch),
         )
+        state.increment_version()
+        return OperationResult(
+            success=True,
+            metadata=command.metadata,
+            events=[BlockCreated(metadata=command.metadata, block_id=command.block_id)],
+            affected_entities=[str(command.block_id)],
+            version=state.version,
+        )
 
     @staticmethod
-    def _update_block(state: BlockFrameworkState, command: UpdateBlock) -> None:
+    def _update_block(state: BlockFrameworkState, command: UpdateBlock) -> OperationResult:
         block = state.blocks.get(command.block_id)
         if not block:
-            raise ValueError(f"Block {command.block_id} does not exist")
+            return OperationResult.failed(command.metadata, [f"Block {command.block_id} does not exist"])
 
         block.metadata.update(command.metadata_patch)
+        block.version += 1
+        state.increment_version()
+        return OperationResult(
+            success=True,
+            metadata=command.metadata,
+            affected_entities=[str(command.block_id)],
+            version=state.version,
+        )
