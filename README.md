@@ -51,6 +51,8 @@ This template treats AI agents as first-class contributors while preserving engi
 - `docs/foundation-concept.md`: Product-agnostic block movement foundation scope.
 - `docs/architecture.md`: Layered architecture for the new block framework implementation.
 - `src/`: Framework implementation (domain, application, and infrastructure layers).
+- `block_engine_foundation/`: Runtime lifecycle package exposing canonical block mechanics.
+- `docs/block-lifecycle-api.md`: Runtime lifecycle API contract and usage examples.
 - `.github/`: PR template, issue templates, and CI workflows (repository hygiene plus workflow-file validation).
 - `tests/`: Test scaffolding and repository-level validation scripts.
 
