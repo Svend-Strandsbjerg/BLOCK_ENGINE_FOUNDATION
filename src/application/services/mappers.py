@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.application.services.read_models import (
+    BlockExtentView,
     BlockLocationView,
     BlockView,
     ContainerBlockView,
@@ -21,6 +22,15 @@ class DomainReadModelMapper:
             block_id=str(block.block_id),
             block_type=block.block_type,
             state=str(block.state) if block.state else None,
+            extent=(
+                BlockExtentView(
+                    value=block.extent.value,
+                    unit=block.extent.unit,
+                    extent_type=block.extent.extent_type,
+                )
+                if block.extent
+                else None
+            ),
             metadata=dict(block.metadata),
             payload=dict(block.payload),
             version=block.version,

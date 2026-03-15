@@ -3,6 +3,7 @@ import unittest
 from src.application.command_handlers.handler import CommandHandler
 from src.application.services.state import BlockFrameworkState
 from src.domain.commands.models import (
+    ChangeBlockExtent,
     ChangeBlockState,
     CreateBlock,
     CreateContainer,
@@ -10,7 +11,7 @@ from src.domain.commands.models import (
     PlaceBlock,
     UpdateBlock,
 )
-from src.domain.block.models import BlockState
+from src.domain.block.models import BlockExtent, BlockState
 from src.domain.common.value_objects import (
     BlockId,
     ContainerId,
@@ -18,7 +19,7 @@ from src.domain.common.value_objects import (
     OperationMetadata,
     SequencePosition,
 )
-from src.domain.events.models import BlockCreated, BlockMoved, BlockStateChanged
+from src.domain.events.models import BlockCreated, BlockExtentChanged, BlockMoved, BlockStateChanged
 from src.domain.operations.rejection import OperationRejection
 
 
@@ -172,6 +173,67 @@ class CommandHandlerTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual("state.transition_blocked", result.rejections[0].code)
         self.assertEqual("planned", str(self.state.blocks[BlockId("b1")].state))
+
+    def test_change_block_extent_emits_event_and_updates_block(self) -> None:
+        self.handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-1"),
+                block_id=BlockId("b1"),
+                block_type="task",
+                extent=BlockExtent(value=30, unit="minutes", extent_type="time"),
+            ),
+        )
+
+        result = self.handler.apply(
+            self.state,
+            ChangeBlockExtent(
+                metadata=self._metadata("op-2"),
+                block_id=BlockId("b1"),
+                extent=BlockExtent(value=90, unit="minutes", extent_type="time"),
+            ),
+        )
+
+        self.assertTrue(result.success)
+        self.assertIsInstance(result.events[0], BlockExtentChanged)
+        self.assertEqual(30, result.events[0].previous_extent.value)
+        self.assertEqual(90, result.events[0].current_extent.value)
+        self.assertEqual(90, self.state.blocks[BlockId("b1")].extent.value)
+
+    def test_block_extent_policy_can_reject_extent_change(self) -> None:
+        class RejectPolicy:
+            def validate(self, current_extent, target_extent):
+                return [
+                    OperationRejection(
+                        code="extent.change_blocked",
+                        message="blocked by policy",
+                        entity_ids=["b1"],
+                    )
+                ]
+
+        handler = CommandHandler(block_extent_policy=RejectPolicy())
+        handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-1"),
+                block_id=BlockId("b1"),
+                block_type="task",
+                extent=BlockExtent(value=12, unit="pieces", extent_type="quantity"),
+            ),
+        )
+
+        result = handler.apply(
+            self.state,
+            ChangeBlockExtent(
+                metadata=self._metadata("op-2"),
+                block_id=BlockId("b1"),
+                extent=BlockExtent(value=99, unit="pieces", extent_type="quantity"),
+            ),
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual("extent.change_blocked", result.rejections[0].code)
+        self.assertEqual(12, self.state.blocks[BlockId("b1")].extent.value)
 
     def test_rejection_model_for_duplicate_block_is_structured(self) -> None:
         self.handler.apply(

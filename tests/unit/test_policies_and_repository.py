@@ -2,7 +2,7 @@ import unittest
 
 from src.application.services.state import BlockFrameworkState
 from src.domain.aggregates.container_aggregate import ContainerAggregate
-from src.domain.block.models import Block
+from src.domain.block.models import Block, BlockExtent
 from src.domain.common.value_objects import (
     BlockId,
     ContainerId,
@@ -51,6 +51,14 @@ class PolicyAndRepositoryTests(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual("placement.blocked", result.rejections[0].code)
         self.assertIn("placement blocked by policy", result.violations)
+
+
+    def test_block_extent_value_object_rejects_blank_descriptors(self) -> None:
+        with self.assertRaises(ValueError):
+            BlockExtent(value=1, unit="   ")
+
+        with self.assertRaises(ValueError):
+            BlockExtent(value=1, extent_type="   ")
 
     def test_repository_expected_version_check(self) -> None:
         repository = InMemoryStateRepository()
