@@ -4,6 +4,7 @@ from src.application.command_handlers.handler import CommandHandler
 from src.application.services.query_service import FrameworkQueryService
 from src.application.services.state import BlockFrameworkState
 from src.domain.commands.models import CreateBlock, CreateContainer, MoveBlock, PlaceBlock
+from src.domain.block.models import BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, OperationId, OperationMetadata, SequencePosition
 
 
@@ -96,6 +97,36 @@ class PositioningAndQueryLayerTests(unittest.TestCase):
         self.assertEqual("c2", block_location.container_id)
         self.assertEqual(["b1"], update_payload["affected_block_ids"])
         self.assertEqual(["c1", "c2"], update_payload["affected_container_ids"])
+
+
+    def test_query_service_exposes_block_state_without_interpretation(self) -> None:
+        self.handler.apply(
+            self.state,
+            CreateContainer(metadata=self._metadata("op-c"), container_id=ContainerId("c1"), container_type="generic"),
+        )
+        self.handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-b"),
+                block_id=BlockId("b1"),
+                block_type="generic",
+                state=BlockState("planned"),
+            ),
+        )
+        self.handler.apply(
+            self.state,
+            PlaceBlock(
+                metadata=self._metadata("op-p"),
+                block_id=BlockId("b1"),
+                container_id=ContainerId("c1"),
+                position=SequencePosition(order_index=0),
+            ),
+        )
+
+        query = FrameworkQueryService(self.state)
+        block_view = query.list_blocks_for_container(ContainerId("c1"))[0]
+
+        self.assertEqual("planned", block_view.state)
 
 
 if __name__ == "__main__":

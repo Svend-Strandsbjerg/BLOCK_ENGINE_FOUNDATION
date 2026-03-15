@@ -3,12 +3,14 @@ import unittest
 from src.application.command_handlers.handler import CommandHandler
 from src.application.services.state import BlockFrameworkState
 from src.domain.commands.models import (
+    ChangeBlockState,
     CreateBlock,
     CreateContainer,
     MoveBlock,
     PlaceBlock,
     UpdateBlock,
 )
+from src.domain.block.models import BlockState
 from src.domain.common.value_objects import (
     BlockId,
     ContainerId,
@@ -16,7 +18,8 @@ from src.domain.common.value_objects import (
     OperationMetadata,
     SequencePosition,
 )
-from src.domain.events.models import BlockCreated, BlockMoved
+from src.domain.events.models import BlockCreated, BlockMoved, BlockStateChanged
+from src.domain.operations.rejection import OperationRejection
 
 
 class CommandHandlerTests(unittest.TestCase):
@@ -107,6 +110,68 @@ class CommandHandlerTests(unittest.TestCase):
 
         self.assertTrue(update_result.success)
         self.assertEqual("high", self.state.blocks[BlockId("b1")].metadata["priority"])
+
+
+    def test_change_block_state_emits_event_and_updates_block(self) -> None:
+        self.handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-1"),
+                block_id=BlockId("b1"),
+                block_type="task",
+                state=BlockState("planned"),
+            ),
+        )
+
+        result = self.handler.apply(
+            self.state,
+            ChangeBlockState(
+                metadata=self._metadata("op-2"),
+                block_id=BlockId("b1"),
+                state=BlockState("committed"),
+            ),
+        )
+
+        self.assertTrue(result.success)
+        self.assertIsInstance(result.events[0], BlockStateChanged)
+        self.assertEqual("planned", str(result.events[0].previous_state))
+        self.assertEqual("committed", str(result.events[0].current_state))
+        self.assertEqual("committed", str(self.state.blocks[BlockId("b1")].state))
+
+    def test_state_transition_policy_can_reject_state_change(self) -> None:
+        class RejectPolicy:
+            def validate(self, current_state, target_state):
+                return [
+                    OperationRejection(
+                        code="state.transition_blocked",
+                        message="blocked by policy",
+                        entity_ids=["b1"],
+                    )
+                ]
+
+        handler = CommandHandler(state_transition_policy=RejectPolicy())
+        handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-1"),
+                block_id=BlockId("b1"),
+                block_type="task",
+                state=BlockState("planned"),
+            ),
+        )
+
+        result = handler.apply(
+            self.state,
+            ChangeBlockState(
+                metadata=self._metadata("op-2"),
+                block_id=BlockId("b1"),
+                state=BlockState("approved"),
+            ),
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual("state.transition_blocked", result.rejections[0].code)
+        self.assertEqual("planned", str(self.state.blocks[BlockId("b1")].state))
 
     def test_rejection_model_for_duplicate_block_is_structured(self) -> None:
         self.handler.apply(

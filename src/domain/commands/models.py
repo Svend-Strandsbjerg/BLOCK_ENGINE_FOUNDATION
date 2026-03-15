@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.domain.block.models import BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, OperationMetadata, Position
 
 
@@ -22,6 +23,7 @@ class CreateContainer(Command):
 class CreateBlock(Command):
     block_id: BlockId
     block_type: str
+    state: BlockState | None = None
     payload: dict[str, Any] = field(default_factory=dict)
     metadata_patch: dict[str, Any] = field(default_factory=dict)
 
@@ -30,6 +32,12 @@ class CreateBlock(Command):
 class UpdateBlock(Command):
     block_id: BlockId
     metadata_patch: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeBlockState(Command):
+    block_id: BlockId
+    state: BlockState
 
 
 @dataclass(frozen=True, slots=True)

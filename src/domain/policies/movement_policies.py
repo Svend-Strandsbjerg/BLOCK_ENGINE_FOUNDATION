@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from src.application.services.state import BlockFrameworkState
+from src.domain.block.models import BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, Position
 from src.domain.operations.rejection import OperationRejection
 
@@ -46,6 +47,16 @@ class PositionConflictPolicy(ABC):
 class ContainerConstraintPolicy(ABC):
     @abstractmethod
     def validate(self, state: BlockFrameworkState, container_id: ContainerId) -> list[OperationRejection]:
+        raise NotImplementedError
+
+
+class StateTransitionPolicy(ABC):
+    @abstractmethod
+    def validate(
+        self,
+        current_state: BlockState | None,
+        target_state: BlockState,
+    ) -> list[OperationRejection]:
         raise NotImplementedError
 
 
@@ -118,4 +129,13 @@ class DefaultPositionConflictPolicy(PositionConflictPolicy):
 
 class DefaultContainerConstraintPolicy(ContainerConstraintPolicy):
     def validate(self, state: BlockFrameworkState, container_id: ContainerId) -> list[OperationRejection]:
+        return []
+
+
+class DefaultStateTransitionPolicy(StateTransitionPolicy):
+    def validate(
+        self,
+        current_state: BlockState | None,
+        target_state: BlockState,
+    ) -> list[OperationRejection]:
         return []

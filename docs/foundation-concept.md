@@ -66,3 +66,17 @@ This prevents leaking raw domain internals to APIs/UIs and keeps adapter evoluti
 - No swimlane/timesheet/product-specific rules in core
 - No frontend code or framework dependencies
 - No heavy framework ceremony; only minimal abstractions required for extension and deterministic behavior
+
+
+## Abstract block state support
+
+The foundation now treats block state as a first-class domain concept:
+
+- `Block` includes an optional `BlockState` value object with a generic string `code`.
+- State values are not enumerated in the foundation; consuming solutions define meaningful codes (for example, `planned` or `approved`).
+- `ChangeBlockState` provides explicit state change commands via the existing command/handler flow.
+- `BlockStateChanged` events emit both `previous_state` and `current_state` for traceability and downstream adapters.
+- Read models expose state through `BlockView.state` for API/UI filtering, grouping, and presentation mapping.
+- Optional transition validation is available through `StateTransitionPolicy`; the default implementation allows all transitions.
+
+This keeps workflow rules and visual semantics outside the core framework while preserving a reusable state mechanism.
