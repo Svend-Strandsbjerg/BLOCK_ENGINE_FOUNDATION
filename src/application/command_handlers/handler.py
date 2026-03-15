@@ -14,6 +14,7 @@ from src.domain.commands.models import (
 )
 from src.domain.container.models import Container
 from src.domain.events.models import BlockCreated
+from src.domain.operations.rejection import OperationRejection
 from src.domain.operations.result import OperationResult
 from src.domain.services.block_movement_service import BlockMovementService
 
@@ -46,7 +47,16 @@ class CommandHandler:
     @staticmethod
     def _create_container(state: BlockFrameworkState, command: CreateContainer) -> OperationResult:
         if command.container_id in state.containers:
-            return OperationResult.failed(command.metadata, [f"Container {command.container_id} already exists"])
+            return OperationResult.failed(
+                command.metadata,
+                [
+                    OperationRejection(
+                        code="container.already_exists",
+                        message=f"Container {command.container_id} already exists",
+                        entity_ids=[str(command.container_id)],
+                    )
+                ],
+            )
 
         container = Container(
             container_id=command.container_id,
@@ -58,14 +68,23 @@ class CommandHandler:
         return OperationResult(
             success=True,
             metadata=command.metadata,
-            affected_entities=[str(command.container_id)],
+            affected_container_ids=[str(command.container_id)],
             version=state.version,
         )
 
     @staticmethod
     def _create_block(state: BlockFrameworkState, command: CreateBlock) -> OperationResult:
         if command.block_id in state.blocks:
-            return OperationResult.failed(command.metadata, [f"Block {command.block_id} already exists"])
+            return OperationResult.failed(
+                command.metadata,
+                [
+                    OperationRejection(
+                        code="block.already_exists",
+                        message=f"Block {command.block_id} already exists",
+                        entity_ids=[str(command.block_id)],
+                    )
+                ],
+            )
 
         state.blocks[command.block_id] = Block(
             block_id=command.block_id,
@@ -78,7 +97,7 @@ class CommandHandler:
             success=True,
             metadata=command.metadata,
             events=[BlockCreated(metadata=command.metadata, block_id=command.block_id)],
-            affected_entities=[str(command.block_id)],
+            affected_block_ids=[str(command.block_id)],
             version=state.version,
         )
 
@@ -86,7 +105,16 @@ class CommandHandler:
     def _update_block(state: BlockFrameworkState, command: UpdateBlock) -> OperationResult:
         block = state.blocks.get(command.block_id)
         if not block:
-            return OperationResult.failed(command.metadata, [f"Block {command.block_id} does not exist"])
+            return OperationResult.failed(
+                command.metadata,
+                [
+                    OperationRejection(
+                        code="block.not_found",
+                        message=f"Block {command.block_id} does not exist",
+                        entity_ids=[str(command.block_id)],
+                    )
+                ],
+            )
 
         block.metadata.update(command.metadata_patch)
         block.version += 1
@@ -94,6 +122,6 @@ class CommandHandler:
         return OperationResult(
             success=True,
             metadata=command.metadata,
-            affected_entities=[str(command.block_id)],
+            affected_block_ids=[str(command.block_id)],
             version=state.version,
         )

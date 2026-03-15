@@ -108,6 +108,29 @@ class CommandHandlerTests(unittest.TestCase):
         self.assertTrue(update_result.success)
         self.assertEqual("high", self.state.blocks[BlockId("b1")].metadata["priority"])
 
+    def test_rejection_model_for_duplicate_block_is_structured(self) -> None:
+        self.handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-1"),
+                block_id=BlockId("b1"),
+                block_type="task",
+            ),
+        )
+
+        result = self.handler.apply(
+            self.state,
+            CreateBlock(
+                metadata=self._metadata("op-2"),
+                block_id=BlockId("b1"),
+                block_type="task",
+            ),
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual("block.already_exists", result.rejections[0].code)
+        self.assertEqual("Block b1 already exists", result.rejections[0].message)
+
 
 if __name__ == "__main__":
     unittest.main()
