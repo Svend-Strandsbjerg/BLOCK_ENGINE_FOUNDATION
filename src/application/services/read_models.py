@@ -3,11 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+
+
+@dataclass(frozen=True, slots=True)
+class BlockExtentView:
+    value: float
+    unit: str | None = None
+    extent_type: str | None = None
+
 @dataclass(frozen=True, slots=True)
 class BlockView:
     block_id: str
     block_type: str
     state: str | None = None
+    extent: BlockExtentView | None = None
     metadata: dict[str, object] = field(default_factory=dict)
     payload: dict[str, object] = field(default_factory=dict)
     version: int = 0

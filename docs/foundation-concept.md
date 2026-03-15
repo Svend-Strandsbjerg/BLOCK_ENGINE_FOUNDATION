@@ -80,3 +80,32 @@ The foundation now treats block state as a first-class domain concept:
 - Optional transition validation is available through `StateTransitionPolicy`; the default implementation allows all transitions.
 
 This keeps workflow rules and visual semantics outside the core framework while preserving a reusable state mechanism.
+
+
+## Abstract block extent support
+
+The foundation now supports a generic measurable extent for each block, without assuming product semantics:
+
+- `BlockExtent` carries:
+  - required numeric `value`
+  - optional `unit` (for example `minutes`, `pieces`, `hours`)
+  - optional `extent_type` (for example `time`, `quantity`, `capacity`)
+- `Block.extent` stores the current abstract measure.
+- `ChangeBlockExtent` allows applications to request extent updates through the standard command pipeline.
+- `BlockExtentChanged` events emit `previous_extent` and `current_extent` alongside operation metadata for traceability.
+- Query/read models expose extent through `BlockView.extent` so consumers can render or synchronize client state.
+- Optional validation is available through `BlockExtentPolicy`; default behavior remains permissive.
+
+### UI interaction boundary
+
+This capability intentionally models **domain measure updates**, not interaction mechanics.
+
+The core framework does **not** include concepts such as drag handles, edge dragging, snapping, pixels, or gesture semantics. A UI computes the target extent value and submits it as a normal command.
+
+Example flow:
+
+1. User resizes a visual block in a client.
+2. Client calculates a new abstract extent (for example `value=90`, `unit=minutes`).
+3. Client sends `ChangeBlockExtent`.
+4. Framework validates via policies, updates state, emits `BlockExtentChanged`, and returns an operation result.
+5. Client refreshes from read models and re-renders according to its own visual logic.

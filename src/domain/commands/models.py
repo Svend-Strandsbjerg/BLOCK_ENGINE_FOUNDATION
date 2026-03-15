@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.domain.block.models import BlockState
+from src.domain.block.models import BlockExtent, BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, OperationMetadata, Position
 
 
@@ -24,6 +24,7 @@ class CreateBlock(Command):
     block_id: BlockId
     block_type: str
     state: BlockState | None = None
+    extent: BlockExtent | None = None
     payload: dict[str, Any] = field(default_factory=dict)
     metadata_patch: dict[str, Any] = field(default_factory=dict)
 
@@ -57,3 +58,9 @@ class MoveBlock(Command):
 @dataclass(frozen=True, slots=True)
 class RemoveBlock(Command):
     block_id: BlockId
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeBlockExtent(Command):
+    block_id: BlockId
+    extent: BlockExtent

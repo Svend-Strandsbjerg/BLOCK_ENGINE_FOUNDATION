@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from src.application.services.state import BlockFrameworkState
-from src.domain.block.models import BlockState
+from src.domain.block.models import BlockExtent, BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, Position
 from src.domain.operations.rejection import OperationRejection
 
@@ -56,6 +56,16 @@ class StateTransitionPolicy(ABC):
         self,
         current_state: BlockState | None,
         target_state: BlockState,
+    ) -> list[OperationRejection]:
+        raise NotImplementedError
+
+
+class BlockExtentPolicy(ABC):
+    @abstractmethod
+    def validate(
+        self,
+        current_extent: BlockExtent | None,
+        target_extent: BlockExtent,
     ) -> list[OperationRejection]:
         raise NotImplementedError
 
@@ -137,5 +147,14 @@ class DefaultStateTransitionPolicy(StateTransitionPolicy):
         self,
         current_state: BlockState | None,
         target_state: BlockState,
+    ) -> list[OperationRejection]:
+        return []
+
+
+class DefaultBlockExtentPolicy(BlockExtentPolicy):
+    def validate(
+        self,
+        current_extent: BlockExtent | None,
+        target_extent: BlockExtent,
     ) -> list[OperationRejection]:
         return []

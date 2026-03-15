@@ -4,6 +4,7 @@ from src.application.services.state import BlockFrameworkState
 from src.domain.aggregates.container_aggregate import ContainerAggregate
 from src.domain.block.models import Block
 from src.domain.commands.models import (
+    ChangeBlockExtent,
     ChangeBlockState,
     Command,
     CreateBlock,
@@ -14,10 +15,15 @@ from src.domain.commands.models import (
     UpdateBlock,
 )
 from src.domain.container.models import Container
-from src.domain.events.models import BlockCreated, BlockStateChanged
+from src.domain.events.models import BlockCreated, BlockExtentChanged, BlockStateChanged
 from src.domain.operations.rejection import OperationRejection
 from src.domain.operations.result import OperationResult
-from src.domain.policies.movement_policies import DefaultStateTransitionPolicy, StateTransitionPolicy
+from src.domain.policies.movement_policies import (
+    BlockExtentPolicy,
+    DefaultBlockExtentPolicy,
+    DefaultStateTransitionPolicy,
+    StateTransitionPolicy,
+)
 from src.domain.services.block_movement_service import BlockMovementService
 
 
@@ -26,9 +32,11 @@ class CommandHandler:
         self,
         movement_service: BlockMovementService | None = None,
         state_transition_policy: StateTransitionPolicy | None = None,
+        block_extent_policy: BlockExtentPolicy | None = None,
     ) -> None:
         self._movement_service = movement_service or BlockMovementService()
         self._state_transition_policy = state_transition_policy or DefaultStateTransitionPolicy()
+        self._block_extent_policy = block_extent_policy or DefaultBlockExtentPolicy()
 
     def apply(self, state: BlockFrameworkState, command: Command) -> OperationResult:
         if isinstance(command, CreateContainer):
@@ -39,6 +47,8 @@ class CommandHandler:
             return self._update_block(state, command)
         if isinstance(command, ChangeBlockState):
             return self._change_block_state(state, command)
+        if isinstance(command, ChangeBlockExtent):
+            return self._change_block_extent(state, command)
         if isinstance(command, PlaceBlock):
             return self._movement_service.place(state, command.block_id, command.container_id, command.position, command.metadata)
         if isinstance(command, MoveBlock):
@@ -99,6 +109,7 @@ class CommandHandler:
             block_id=command.block_id,
             block_type=command.block_type,
             state=command.state,
+            extent=command.extent,
             payload=dict(command.payload),
             metadata=dict(command.metadata_patch),
         )
@@ -167,6 +178,44 @@ class CommandHandler:
                     block_id=command.block_id,
                     previous_state=previous_state,
                     current_state=command.state,
+                )
+            ],
+            affected_block_ids=[str(command.block_id)],
+            version=state.version,
+        )
+
+
+    def _change_block_extent(self, state: BlockFrameworkState, command: ChangeBlockExtent) -> OperationResult:
+        block = state.blocks.get(command.block_id)
+        if not block:
+            return OperationResult.failed(
+                command.metadata,
+                [
+                    OperationRejection(
+                        code="block.not_found",
+                        message=f"Block {command.block_id} does not exist",
+                        entity_ids=[str(command.block_id)],
+                    )
+                ],
+            )
+
+        rejections = self._block_extent_policy.validate(block.extent, command.extent)
+        if rejections:
+            return OperationResult.failed(command.metadata, rejections)
+
+        previous_extent = block.extent
+        block.extent = command.extent
+        block.version += 1
+        state.increment_version()
+        return OperationResult(
+            success=True,
+            metadata=command.metadata,
+            events=[
+                BlockExtentChanged(
+                    metadata=command.metadata,
+                    block_id=command.block_id,
+                    previous_extent=previous_extent,
+                    current_extent=command.extent,
                 )
             ],
             affected_block_ids=[str(command.block_id)],

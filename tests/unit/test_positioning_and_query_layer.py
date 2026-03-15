@@ -4,7 +4,7 @@ from src.application.command_handlers.handler import CommandHandler
 from src.application.services.query_service import FrameworkQueryService
 from src.application.services.state import BlockFrameworkState
 from src.domain.commands.models import CreateBlock, CreateContainer, MoveBlock, PlaceBlock
-from src.domain.block.models import BlockState
+from src.domain.block.models import BlockExtent, BlockState
 from src.domain.common.value_objects import BlockId, ContainerId, OperationId, OperationMetadata, SequencePosition
 
 
@@ -111,6 +111,7 @@ class PositioningAndQueryLayerTests(unittest.TestCase):
                 block_id=BlockId("b1"),
                 block_type="generic",
                 state=BlockState("planned"),
+                extent=BlockExtent(value=4, unit="hours", extent_type="capacity"),
             ),
         )
         self.handler.apply(
@@ -127,6 +128,10 @@ class PositioningAndQueryLayerTests(unittest.TestCase):
         block_view = query.list_blocks_for_container(ContainerId("c1"))[0]
 
         self.assertEqual("planned", block_view.state)
+        self.assertIsNotNone(block_view.extent)
+        self.assertEqual(4, block_view.extent.value)
+        self.assertEqual("hours", block_view.extent.unit)
+        self.assertEqual("capacity", block_view.extent.extent_type)
 
 
 if __name__ == "__main__":
